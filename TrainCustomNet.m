@@ -42,7 +42,6 @@ input(:,boolean_target)=[];
 inp=input';
 out=output';
 nntwarn off
-% [Inp_nor, minInp, maxInp, Out_nor, minOut, maxOut] = premnmx (inp,out);
 
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%% here we normalize the data
 [Inp_nor, minInp, maxInp, Out_nor, minOut, maxOut] = premnmx (inp,out);
@@ -50,9 +49,6 @@ Inp_nor = Inp_nor(:,1:n_point);
 Out_nor = Out_nor(:,1:n_point);
 % %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-                        
-% [Inp_nor, minInp, maxInp] = premnmx (inp');
-% [Out_nor, minOut, maxOut] = premnmx (out');
 
 % Preparing, training, test and validation set for input (drivers) and
 % output (target)
@@ -87,10 +83,10 @@ net.trainParam.show = NaN; % per la WS
 
 % train the net (first initialization)
 [net_add,report] = train (net,Inp_tr,Out_tr,[],[],valid,test);
-
+ 
 
 % "save" the performance of the trained network
-perf_test = report.tperf (end);
+perf_test = report.vperf (end);
 
 % with the following loop, we do the remaining 4 initialization (from 2 to 5)
 if num_in>1
@@ -100,14 +96,15 @@ if num_in>1
         % train the network and calculate the performance
         [net_pro,report_pro] = train (net,Inp_tr,Out_tr,[],[],valid,test);
         % if the trained network is better than the previous one
-        if (report_pro.tperf (end) < perf_test)
+        if (report_pro.vperf (end) < perf_test)
             % select the new net as the best
             net_add = net_pro;
-            perf_test = report_pro.tperf (end);
+            perf_test = report_pro.vperf (end);
             report = report_pro;
         end
     end
 end
+
 
 % estimate the output on the test set for the best net
 Out_net_r = sim (net_add,test.P);
@@ -121,13 +118,13 @@ for l = 1:numel(Out_net_r)
     Out_net0(l,:)=Out_net_r{l,1};
     Out_real0(l,:)=Out_real_r{l,1};
 end
-
 % outputs, from sim function, are normalized. We need to convert them in
 % the units of measurement of the target (NEE)
 clear Out_real Out_net
 Out_net = postmnmx (Out_net0,minOut,maxOut);
 Out_real = postmnmx (Out_real0,minOut,maxOut);
 clear Out_real0 Out_net0
+
 % evaluate the performance of the net in the test set
 m=[];
 b=[];
@@ -146,7 +143,6 @@ for i=1:n_out
    % ylabel('Target')
     %legend off 
 end
-
 
 % calculate the error
 errors = Out_real-Out_net;
@@ -181,6 +177,53 @@ for i=1:n_out
     Rapp = [Rapp Sum_net(i)/Sum_real(i)];
 end
 
+permutation = NaN(22,1);
+for i=1:22
+    if i<13
+        j=1;
+        h=i;
+    elseif i<22
+        j=2;
+        h=i-12;
+    else
+        j=3;
+        h=i-21;
+    end
+    mn = [];
+    for k=1:5
+        % permutate input variable i
+        test0 = test;
+        n = size(test0.P{j,1},2);
+        p = randperm(n);
+        test0.P{j,1}(h,:) = test.P{j,1}(h,p);
+        % estimate the output on the permutated test set
+        Out_net_rp = sim(net_add, test0.P);
+        Out_real_rp={};
+        for l = 1:numel(Out_net_rp)
+            Out_real_rp{l,1} = test0.T{l,1};
+        end
+        Out_net0=NaN(numel(Out_real_rp),numel(test0.T{1,1}));
+        Out_real0=NaN(numel(Out_real_rp),numel(test0.T{1,1}));
+        for l = 1:numel(Out_net_rp)
+            Out_net0(l,:)=Out_net_rp{l,1};
+            Out_real0(l,:)=Out_real_rp{l,1};
+        end
+        % outputs, from sim function, are normalized. We need to convert them in
+        % the units of measurement of the target (NEE)
+        clear Out_real_p Out_net_p
+        Out_net_p = postmnmx (Out_net0,minOut,maxOut);
+        Out_real_p = postmnmx (Out_real0,minOut,maxOut);
+        clear Out_real0 Out_net0
+        % calculate the error
+        clear errors
+        errors = Out_real_p-Out_net_p;
+        mn = [mn mse(errors(1,:))-(RMSE^2)];
+        clear test0 n p Out_real_rp Out_net_rp Out_real_p Out_net_p
+    end
+        permutation(i,1) = mean(mn);
+        clear mn
+end
+
 net_add;
 
 % store statistics of net's performance in the object net_data 
@@ -197,4 +240,5 @@ net_data.r=r;
 net_data.sumnet=Sum_net;
 net_data.sumreal=Sum_real;
 net_data.rapsum=Rapp;
+net_data.perm = permutation;
 

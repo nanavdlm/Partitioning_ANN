@@ -15,7 +15,7 @@ close all
 % TO_BE_SET. Path where the codes are present. In the same folder there must
 % be a subfolder named "Input" with the original input data and the subfolder
 % prepared by the first and second codes run.
-main_path = 'C:\partitioning_ANN\';
+main_path = 'C:\Users\rdaelman\OneDrive - UGent\Documents\GitHub\Partitioning_ANN\';
 
 addpath(main_path);
 
@@ -91,7 +91,7 @@ for l = 1:numel(list_of_files)
     clear OutGPP_NNcust OutReco_NNcust
     
     % "_ann_MaxD_gf" objects store GPP and RECO calculated when NEE is missing;
-    % at the following row we  filtered GPP and RECO predictions for NEE
+    % at the following row we filtered GPP and RECO predictions for NEE
     % missing values; the fileterd GPP and RECO are stored in the object
     % "_ann_MaxD_or"
     GPP_fnet_std_gf=C_flux_Tab(:,3:4);
@@ -109,7 +109,7 @@ for l = 1:numel(list_of_files)
     RECO_fnet_std_or(i_nan,:)=NaN;    
     
     % TimeDate_MaxD_gf = TimeDate(:,1:2);
-    t_step = sum(TimeDate(:,1)==TimeDate(1,1) & TimeDate(:,2)==TimeDate(1,2));
+    t_step = sum(TimeDate(:,1)==TimeDate(1,1) & TimeDate(:,2)==TimeDate(1,2))+1;
     hh = 0:(24/t_step):23.5;
     hh = hh';
     hh = repmat(hh,size(TimeDate,1)./t_step,1);
@@ -125,7 +125,7 @@ for l = 1:numel(list_of_files)
     
     
     load([main_path 'Input\' list_of_files(1).name(1:2) '-' list_of_files(1).name(4:6) '_input']);
-    dataISO=data(:,[1:2]);
+    dataISO=data(:,[1]);
     clear data data_header
     RECO_ANN=nanmean(RECO_ann_MaxD_gf(1:size(dataISO,1),:),2);
     GPP_ANN=nanmean(GPP_ann_MaxD_gf(1:size(dataISO,1),:),2);
@@ -140,9 +140,9 @@ for l = 1:numel(list_of_files)
     [nrows,ncols]= size(output_fin);
     filename = [list_of_files(1).name(1:2) '-' list_of_files(1).name(4:6) '_ANN_partitioning.csv'];
     fid = fopen([path_where_save filename], 'w');
-    fprintf(fid, '%s\n', 'TIMESTAMP_START,TIMESTAMP_END,GPP_ANN,RECO_ANN');
+    fprintf(fid, '%s\n', 'TIMESTAMP_END,GPP_ANN,RECO_ANN');
     for row=1:nrows
-        fprintf(fid, '%.0f,%.0f,%g,%g\n', output_fin(row,:));
+        fprintf(fid, '%.0f,%g,%g\n', output_fin(row,:));
     end
     fclose(fid);
 

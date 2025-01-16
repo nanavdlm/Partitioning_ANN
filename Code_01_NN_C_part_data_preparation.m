@@ -21,8 +21,8 @@ close all
 % TO_BE_SET. Path where the codes are present. In the same folder there must
 % be a subfolder named "Input" with the original input data. The code will
 % create subfolders.
-main_path = 'C:\partitioning_ANN\';
-NEE_reference = 'NEE_VUT_REF';
+main_path = 'C:\Users\rdaelman\OneDrive - UGent\Documents\GitHub\Partitioning_ANN\';
+NEE_reference = 'NEE_U50_f';
 
 addpath(main_path);
 
@@ -65,12 +65,15 @@ for iin_s = 1:numel(Sites2elab)
     
     % upload the file
     clear data_header data 
+
+    %% 
+
     load([path_fluxes_data s_name(1:2) '-' s_name(4:6) '_input.mat'])
     
     if sum(ismember(data_header,{NEE_reference}))==1
         % pick-up Timestamp info
         clear TimeDate_2  TimeDate_head TimeDate
-        TimeDate_2 = data(:,1:2);
+        TimeDate_2 = data(:,1);
         TimeDate_head  = {'Id','Year','Doy','Month','Day','Hour'};
         TimeDate = NaN(size(TimeDate_2,1),5);
         % derive timeinfo from Id,timestamp: year,month,day,hour
@@ -89,7 +92,7 @@ for iin_s = 1:numel(Sites2elab)
         TimeDate_head={'year','doy','hh'};
         clear doy
         % find the time step = half hourly (48) or hourly (24)
-        tstep = sum(TimeDate(:,1)==TimeDate(1,1) & TimeDate(:,2) == TimeDate(1,2));
+        tstep = sum(TimeDate(:,1)==TimeDate(1,1) & TimeDate(:,2) == TimeDate(1,2))+1;
         % sometimes there are files where the last half hour is missing; if it is the
         % case we add the missing half hour by replicating the last row; for
         % the remaining part of the code it is important having the same number of half
@@ -105,19 +108,31 @@ for iin_s = 1:numel(Sites2elab)
                clear n
            end
            clear n_miss tstep_end
-        end    
+        end 
+        if size(TimeDate,1)/tstep - floor(size(TimeDate,1)./tstep) > 0
+           tstep_begin = sum(TimeDate(:,1)==TimeDate(1,1) & TimeDate(:,2) == TimeDate(1,2));
+           n_miss = tstep-tstep_begin;
+           if n_miss > 0
+               for n = 1:n_miss
+                   data(2:end+1,:)=data(:,:);
+                   TimeDate(2:end+1,:)=TimeDate(:,:);
+               end
+               clear n
+           end
+           clear n_miss tstep_end
+        end 
         TimeDate_Qc = 0.*TimeDate;
         % List of variables of interest for drivers and NEE to
         % be used in the training.
         clear Variables_head
-        Variables_head = {'TA_F_MDS';
-            'TS_F_MDS_1';
-            'SWC_F_MDS_1';
+        Variables_head = {'Tair_f';
+            'TS_f';
+            'SWC_f';
             'SW_IN_POT';
-            'SW_IN_F_MDS';    
-            'VPD_F_MDS';
-            'WS_F';
-            'WD';
+            'SW_IN_f';    
+            'VPD_f';
+            'WS_f';
+            'WD_f';
             NEE_reference;
             }';
 
@@ -139,7 +154,7 @@ for iin_s = 1:numel(Sites2elab)
                 Variables_Tab(:,l)=data(:,ia);
                 t_head(l)=1;
                 clear ia
-                ia = ismember(data_header,{[char(Variables_head(l)) '_QC']});
+                ia = ismember(data_header,{[char(Variables_head(l)) 'qc']});
                 if sum(ia) > 0
                     Variables_Tab_Qc(:,l)=data(:,ia);
                     clear ia
@@ -162,7 +177,7 @@ for iin_s = 1:numel(Sites2elab)
         Drivers_head(ismember(Drivers_head,{NEE_reference;}))=[];
 
         clear main_driver_qc
-        main_driver_qc = Drivers_head; % {'SW_IN_F_MDS_QC','VPD_F_MDS_QC','TA_F_MDS_QC','WS_F_QC'};
+        main_driver_qc = Drivers_head; % {'SW_IN_fqc','VPD_fqc','Tair_fqc','WS_fqc', 'WD_fqc};
  
         % find the available year "uy" and preparing a matrix where we put the
         % available half hourly of measured data "tn"
@@ -172,10 +187,10 @@ for iin_s = 1:numel(Sites2elab)
         % Build a matrix with the gross CO2 fluxes from DT and NT method as
         % reference.
         clear C_flux_head
-        C_flux_head = {['RECO_DT' NEE_reference(4:end)];
-        ['RECO_NT' NEE_reference(4:end)];
-        ['GPP_DT' NEE_reference(4:end)];
-        ['GPP_NT' NEE_reference(4:end)];};
+        C_flux_head = {['Reco_DT'];
+        ['TK_Reco_DT'];
+        ['GPP_DT'];
+        ['TK_GPP_DT'];};
 
         clear C_flux_Tab C_flux_Tab_Qc t_head
         C_flux_Tab = NaN(size(data,1),numel(C_flux_head));
@@ -188,12 +203,16 @@ for iin_s = 1:numel(Sites2elab)
                 C_flux_Tab(:,l)=data(:,ia);
                 t_head(l)=1;
                 clear ia
-                ia = ismember(data_header,{[char(C_flux_head(l)) '_QC']});
+                if strcmp(extract(C_flux_head(l),1), 'T')
+                    ia = ismember(data_header,{['TK_FP_qc']});
+                else
+                    ia = ismember(data_header, {['FP_qc']});
+                end
                 if sum(ia) > 0
                     C_flux_Tab_Qc(:,l)=data(:,ia);
                     clear ia
                 end
-            end
+             end
         end
         t_head=logical(t_head);
         C_flux_Tab=C_flux_Tab(:,t_head);
@@ -226,8 +245,8 @@ for iin_s = 1:numel(Sites2elab)
                 % daytime are measured, the number of measured observed and
                 % target variables are calculated. To use a percentage
                 % different than 80%, specify it here below 
-                if sum(nanmean(mat_qc_driver(iNight,:) == 0,1) >= 0.8) == numel(Drivers_needed_head)
-                    if sum(nanmean(mat_qc_driver(iDay,:) == 0,1) >= 0.8) == numel(Drivers_needed_head)                   
+                if sum(nanmean(mat_qc_driver(iNight,:) == 0,1) >= 0.50) == numel(Drivers_needed_head)
+                    if sum(nanmean(mat_qc_driver(iDay,:) == 0,1) >= 0.50) == numel(Drivers_needed_head)                   
                        clear tData
                        tData = mat_qc_driver;
                        tData(tData > 0) = NaN;
@@ -273,10 +292,10 @@ for iin_s = 1:numel(Sites2elab)
             
             % Pick-up the Shortwave radiation (potential and measured)
             % and related quality check (zeros for SW_IN_POT).
-            tRad = Drivers_Tab(:,ismember(Drivers_head, {'SW_IN_POT'; 'SW_IN_F_MDS'}));
-            tRadQc = Drivers_Tab_Qc(:,ismember(Drivers_head, {'SW_IN_POT'; 'SW_IN_F_MDS'}));
+            tRad = Drivers_Tab(:,ismember(Drivers_head, {'SW_IN_POT'; 'SW_IN_f'}));
+            tRadQc = Drivers_Tab_Qc(:,ismember(Drivers_head, {'SW_IN_POT'; 'SW_IN_f'}));
             tRadQc(:,1)=0;
-            tRad_head = Drivers_head(ismember(Drivers_head, {'SW_IN_POT'; 'SW_IN_F_MDS'}));
+            tRad_head = Drivers_head(ismember(Drivers_head, {'SW_IN_POT'; 'SW_IN_f'}));
             tRad(tRadQc > 0)=NaN;
             clear tRadQc
             
@@ -334,7 +353,7 @@ for iin_s = 1:numel(Sites2elab)
             clear tRadDaily tRadDailySeas tNeeDaytime tNeeNightime
 
             % Pick-up wind variables
-            Wind_head = {'WS_F';'WD';};
+            Wind_head = {'WS_f';'WD_f';};
             Wind = NaN(size(Drivers_Tab,1),numel(Wind_head));
             Wind_Qc = NaN(size(Drivers_Tab,1),numel(Wind_head));
             for l = 1:numel(Wind_head)
@@ -343,9 +362,9 @@ for iin_s = 1:numel(Sites2elab)
             end
 
             % Pick up the micrometeorological variables
-            MicroMeteo_head = {'TA_F_MDS';'VPD_F_MDS';'TS_F_MDS_1';'SWC_F_MDS_1';};
-            MicroMeteo = NaN(size(Drivers_Tab,1),numel(Wind_head));
-            MicroMeteo_Qc = NaN(size(Drivers_Tab,1),numel(Wind_head));
+            MicroMeteo_head = {'Tair_f';'VPD_f';'TS_f';'SWC_f';};
+            MicroMeteo = NaN(size(Drivers_Tab,1),numel(MicroMeteo_head));
+            MicroMeteo_Qc = NaN(size(Drivers_Tab,1),numel(MicroMeteo_head));
             for l = 1:numel(MicroMeteo_head)
                 MicroMeteo(:,l) = Drivers_Tab(:,ismember(Drivers_head,MicroMeteo_head(l)));
                 MicroMeteo_Qc(:,l) = Drivers_Tab_Qc(:,ismember(Drivers_head,MicroMeteo_head(l)));
@@ -388,7 +407,7 @@ for iin_s = 1:numel(Sites2elab)
             % measured), add the finite difference of half hourly
             % potential radiation to have information about the expected
             % changing in light condition due to time.
-            Rad_data_head = {'SW_IN_POT';'SW_IN_F_MDS'};
+            Rad_data_head = {'SW_IN_POT';'SW_IN_f'};
             Rad_data = NaN(size(Drivers_Tab,1),numel(Rad_data_head));
             Rad_data_Qc = NaN(size(Drivers_Tab,1),numel(Rad_data_head));
             for l = 1:numel(Rad_data_head)
@@ -469,7 +488,7 @@ for iin_s = 1:numel(Sites2elab)
             clear Seasonality_1_Qc Rad_data_Qc MicroMeteo_Qc WaterRelated_1_Qc Wind_Qc Ustar_Qc Seasonality_2_Qc Energy_Qc
 
             clear tstep
-            tstep = sum(TimeDate(:,1)== TimeDate(1,1) & TimeDate(:,2)==TimeDate(1,2));
+            tstep = sum(TimeDate(:,1)== TimeDate(1,1) & TimeDate(:,2)==TimeDate(1,2))+1;
 
             % Remove from the analysis all the years where the expected measured days 
             % (estimated as the ratio between the number of valid half hourly/hourly 
@@ -481,8 +500,8 @@ for iin_s = 1:numel(Sites2elab)
             clear Data_availability_4_year
 
             tn=floor(tn./tstep);
-            uy(tn(:,2) <= 100,:)=[];
-            tn(tn(:,2) <= 100,:)=[];
+            uy(tn(:,2) <= 20,:)=[];
+            tn(tn(:,2) <= 20,:)=[];
             uy(isnan(tn(:,2)),:)=[];
             tn(isnan(tn(:,2)),:)=[];
             [~, i1] = sort(tn(:,2), 'descend');

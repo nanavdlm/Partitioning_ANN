@@ -20,4 +20,4 @@ data=content.data;
 
 data(data<-9990)=NaN;
 
-save([filename(5:10) '_input.mat'],'data','data_header')
+save([filename(1:2) '-' filename(4:6) '_input.mat'],'data','data_header')

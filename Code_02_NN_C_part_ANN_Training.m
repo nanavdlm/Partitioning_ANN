@@ -13,7 +13,7 @@ close all
 % TO_BE_SET. Path where the codes are present. In the same folder there must
 % be a subfolder named "Input" with the original input data and the subfolder
 % prepared by the first code run.
-main_path = 'C:\partitioning_ANN\';
+main_path = 'C:\Users\rdaelman\OneDrive - UGent\Documents\GitHub\Partitioning_ANN\';
 
 addpath(main_path);
 
@@ -55,7 +55,7 @@ for n_s = 1:numel(Sites2elab)
     % Load the data
     load([path_input_data s_name '_data4cann_2v0.mat'])
     % Pick-up radiation data    
-    Rad_data_head = {'SW_IN_POT';'SW_IN_F_MDS'};
+    Rad_data_head = {'SW_IN_POT';'SW_IN_f'};
     Rad_data = NaN(size(X2,1),numel(Rad_data_head));
     Rad_data_Qc = NaN(size(X2,1),numel(Rad_data_head));
     for l = 1:numel(Rad_data_head)
@@ -64,12 +64,12 @@ for n_s = 1:numel(Sites2elab)
     end   
 
     % Create the header of the variables used as drivers     
-    prov_d_head_switchoff={'SW_IN_F_MDS'}; % for the product with LUE
-    prov_d_head_reco={'WS_F';'cos_wd';'sin_wd';'TA_F_MDS';'TS_F_MDS_1';'SWC_F_MDS_1';'cos_doy';'sin_doy';'NeeNightime';}; % to estimate RECO
-    prov_d_head_photo={'WS_F';'cos_wd';'sin_wd';'TA_F_MDS';'SWC_F_MDS_1';'RadDaily';'RadDailySeas';'SW_IN_POT';'SW_IN_F_MDS';'dSW_IN_POT';'VPD_F_MDS';'GPPDailyprov';}; % to estimate LUE
+    prov_d_head_switchoff={'SW_IN_f'}; % for the product with LUE
+    prov_d_head_reco={'WS_f';'cos_wd';'sin_wd';'Tair_f';'TS_f';'SWC_f';'cos_doy';'sin_doy';'NeeNightime';}; % to estimate RECO
+    prov_d_head_photo={'WS_f';'cos_wd';'sin_wd';'Tair_f';'SWC_f';'RadDaily';'RadDailySeas';'SW_IN_POT';'SW_IN_f';'dSW_IN_POT';'VPD_f';'GPPDailyprov';}; % to estimate LUE
     
     % The code is structured also to upload not complete files (e.g. when only 10 of the 25
-    % networks were trained) to train the remaining networks or starting frorm an empty object (no trained network)
+    % networks were trained) to train the remaining networks or starting from an empty object (no trained network)
     % trained model are stored in the object ModelsStruct 
     clear ModelsStruct
     clear OutReco_NNcust_NT OutNEE_tset_NNcust_NT
@@ -153,7 +153,7 @@ for n_s = 1:numel(Sites2elab)
             % because in the preprocessing script we select sites only if
             % at least 80% of both daytime and nighttime observationa are measured,
             % no variables should be removed (in the default setting)
-            i2rem = find(nanmean(tX2qc > 0,1) > 0.2);
+            i2rem = find(nanmean(tX2qc > 0,1) > 0.43);
             tX2qc(:,i2rem)=[];
             tX2_head(i2rem)=[];
             tX2(:,i2rem)=[];
@@ -168,14 +168,14 @@ for n_s = 1:numel(Sites2elab)
                 ifin = isfinite(prod([tX2 tYtr],2));
                 % verify if there are more than 1825 half hourly
                 % observation for both nighttime and daytime NEE if yes continue 
-                if numel(find(sum(tRad_data(ifin,:) > 0,2)==0)) > (5*365.*tstep)/(48) && numel(find(sum(tRad_data(ifin,:) > 2,2)==2)) > (5*365.*tstep)/(48)
+                if numel(find(sum(tRad_data(ifin,:) > 0,2)==0)) > 200 && numel(find(sum(tRad_data(ifin,:) > 2,2)==2)) > 200
 
-                    if numel(find(sum(tRad_data == 0,2)==2 & sum(isfinite([tX2 tYtr]),2) == size([tX2 tYtr],2))) > (365.*tstep)/(48)               
+                    if numel(find(sum(tRad_data == 0,2)==2 & sum(isfinite([tX2 tYtr]),2) == size([tX2 tYtr],2))) > 200               
 
                         % procressing the site-year if n°of trained net is
                         % lower than 25
                         if tab_n_c < 25
-                            % if numebr of processed net if 0, initialize
+                            % if numebr of processed net is 0, initialize
                             % the matrices to store the data
                             if tab_n_c == 0 
                                 clear tOutReco_NNcust tOutGPP_NNcust tOutNEE_tset_NNcust
@@ -185,7 +185,7 @@ for n_s = 1:numel(Sites2elab)
                             end
                             % find the starting point (the fist net to
                             % train in this loop, 1 in case of no processed
-                            % year, > 1 if the processing was not complete)
+                            % years, > 1 if the processing was not complete)
                             start_rep = (tab_n_c+1);
                             
                             
@@ -250,7 +250,7 @@ for n_s = 1:numel(Sites2elab)
                                 % Out_net = ouput of the network on the test set
                                 clear str_inp_out Inp_nor net_add net_data Out_net
                                 [str_inp_out, Inp_nor, net_add, net_data, Out_net] = TrainNN_cust_dt_Master(X,X_head,prov_d_head_photo,prov_d_head_reco,prov_d_head_switchoff,{NEE_reference},party_data);
-
+                               
                                 % once the trainig is done weightsare extracted from the networks and saved 
                                 % in the object "ModelsStruct" for each processed year wand each subnetwork
                                 weight = getwb(net_add);
